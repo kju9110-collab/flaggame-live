@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>세계 경제 50대국 서바이벌</title>
+    <title>세계 50대국 서바이벌 - 역순 쌓기</title>
     <style>
         body { margin: 0; background-color: #90D5FF; overflow: hidden; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; }
         .info-panel { margin-top: 15px; display: flex; gap: 15px; z-index: 10; }
@@ -15,22 +15,26 @@
         
         .flag { position: absolute; width: 30px; height: 20px; background-size: cover; border: 0.5px solid #ccc; z-index: 2; border-radius: 2px; }
 
-        /* 하단 쌓이는 국기 영역 */
+        /* 하단 영역: 50개의 칸을 미리 만들어둠 */
         #flag-list { 
-            width: 95%; height: 120px; display: grid; grid-template-columns: repeat(10, 1fr); 
+            width: 95%; display: grid; grid-template-columns: repeat(10, 1fr); 
             grid-template-rows: repeat(5, 1fr); gap: 4px; padding: 10px; 
             background: rgba(255,255,255,0.4); border-radius: 10px; border: 2px solid rgba(0,0,0,0.1);
+            min-height: 130px;
         }
-        .list-flag { width: 100%; height: 22px; background-size: cover; border: 0.5px solid #555; border-radius: 2px; animation: popIn 0.3s ease-out; }
+        /* 빈 칸 스타일 */
+        .slot { width: 100%; height: 22px; border: 0.5px dashed rgba(0,0,0,0.1); border-radius: 2px; }
+        /* 채워진 국기 스타일 */
+        .list-flag { width: 100%; height: 100%; background-size: cover; border: 0.5px solid #555; border-radius: 2px; animation: popIn 0.3s ease-out; }
         
-        @keyframes popIn { from { transform: scale(0); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        @keyframes popIn { from { transform: scale(1.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
     </style>
 </head>
 <body>
 
 <div class="info-panel">
-    <div class="ui-box"><b>1등(우승)</b><br><span id="winner-name">-</span></div>
-    <div class="ui-box"><b>생존 국가</b><br><span id="survivor-count">0</span></div>
+    <div class="ui-box"><b>우승(1등)</b><br><span id="winner-name">-</span></div>
+    <div class="ui-box"><b>경기 중</b><br><span id="survivor-count">0</span></div>
 </div>
 
 <div id="arena-container">
@@ -47,22 +51,27 @@
     
     const radius = 160;
     let flags = [];
+    let exitOrder = []; // 나가는 순서를 저장
     
-    // 🌍 세계 경제 순위 상위 약 50개국 코드
-    const econ50 = [
-        'us','cn','jp','de','in','gb','fr','it','ca','br','ru','kr','au','es','mx','id','nl','sa','tr','ch',
-        'tw','pl','se','be','eg','ie','th','no','ar','il','ae','za','dk','my','sg','ph','vn','ro','cz','cl',
-        'fi','co','at','hk','pk','hu','pe','gr','nz','dz'
-    ];
+    const econ50 = ['us','cn','jp','de','in','gb','fr','it','ca','br','ru','kr','au','es','mx','id','nl','sa','tr','ch','tw','pl','se','be','eg','ie','th','no','ar','il','ae','za','dk','my','sg','ph','vn','ro','cz','cl','fi','co','at','hk','pk','hu','pe','gr','nz','dz'];
 
     function initGame() {
         arena.querySelectorAll('.flag').forEach(el => el.remove());
         flagListContainer.innerHTML = '';
         flags = [];
+        exitOrder = [];
         winnerDisplay.innerText = "-";
 
-        // 50개국 중 무작위로 20~30개를 뽑아 게임 진행 (너무 많으면 겹쳐서 25개 추천)
-        const selected = [...econ50].sort(() => Math.random() - 0.5).slice(0, 25);
+        // 50개 칸(Slot)을 미리 생성
+        for(let i=0; i<50; i++) {
+            const slot = document.createElement('div');
+            slot.className = 'slot';
+            slot.id = 'slot-' + i;
+            flagListContainer.appendChild(slot);
+        }
+
+        // 경제 50대국 모두 참여
+        const selected = [...econ50].sort(() => Math.random() - 0.5);
 
         selected.forEach((code) => {
             const el = document.createElement('div');
@@ -71,7 +80,7 @@
             arena.appendChild(el);
 
             const angle = Math.random() * Math.PI * 2;
-            const speed = 2.5 + Math.random() * 1.5;
+            const speed = 2.5 + Math.random() * 2;
             flags.push({ el, code, x: radius, y: radius, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, out: false });
         });
         
@@ -88,17 +97,23 @@
             const dx = f.x - radius, dy = f.y - radius;
             const dist = Math.sqrt(dx * dx + dy * dy);
 
-            // 🔴 구멍으로 탈락 시 순서대로 아래 쌓기
+            // 🔴 구멍으로 탈락 시 로직
             if (f.x > radius + 145 && f.y > radius - 30 && f.y < radius + 30) {
                 f.out = true;
                 f.el.style.display = 'none';
                 
-                // 탈락한 국기를 아래 리스트에 추가
-                const listItem = document.createElement('div');
-                listItem.className = 'list-flag';
-                listItem.style.backgroundImage = f.el.style.backgroundImage;
-                flagListContainer.appendChild(listItem);
+                // 탈락 순서대로 뒤에서부터 채우기
+                // 50개 중 먼저 나간 공은 49번 칸, 그 다음은 48번 칸...
+                const slotIndex = 49 - exitOrder.length;
+                const targetSlot = document.getElementById('slot-' + slotIndex);
+                if(targetSlot) {
+                    const listItem = document.createElement('div');
+                    listItem.className = 'list-flag';
+                    listItem.style.backgroundImage = f.el.style.backgroundImage;
+                    targetSlot.appendChild(listItem);
+                }
                 
+                exitOrder.push(f.code);
                 checkGameOver();
                 return;
             }
@@ -131,19 +146,24 @@
         if (remaining.length === 1) {
             const winner = remaining[0];
             winnerDisplay.innerText = winner.code.toUpperCase();
-            winner.el.style.transform = "scale(2.5)";
-            winner.el.style.transition = "transform 0.5s";
+            winner.el.style.transform = "scale(3)";
+            winner.el.style.transition = "all 0.5s";
+            winner.el.style.left = "145px";
+            winner.el.style.top = "150px";
             
-            // 1등 국기도 마지막에 리스트에 추가
+            // 우승자는 0번 칸(맨 왼쪽 위)에 배치
             setTimeout(() => {
-                const listItem = document.createElement('div');
-                listItem.className = 'list-flag';
-                listItem.style.backgroundImage = winner.el.style.backgroundImage;
-                listItem.style.border = "2px solid gold"; // 우승자 표시
-                flagListContainer.appendChild(listItem);
-            }, 500);
+                const targetSlot = document.getElementById('slot-0');
+                if(targetSlot) {
+                    const listItem = document.createElement('div');
+                    listItem.className = 'list-flag';
+                    listItem.style.backgroundImage = winner.el.style.backgroundImage;
+                    listItem.style.border = "2px solid gold";
+                    targetSlot.appendChild(listItem);
+                }
+            }, 1000);
 
-            setTimeout(initGame, 4000); // 4초 후 다음 게임
+            setTimeout(initGame, 5000); // 5초 후 리셋
         }
     }
 
