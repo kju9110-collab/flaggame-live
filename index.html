@@ -3,161 +3,136 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>국기 팡팡 게임 - 무한 반복</title>
+    <title>국기 서바이벌 - 마지막 하나까지!</title>
     <style>
         body { margin: 0; background-color: #90D5FF; overflow: hidden; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; }
-        
-        /* 상단 UI 정보창 */
         .info-panel { margin-top: 15px; display: flex; gap: 15px; z-index: 10; }
-        .ui-box { background: white; border: 2px solid black; border-radius: 12px; padding: 8px 20px; text-align: center; min-width: 90px; box-shadow: 2px 2px 0px rgba(0,0,0,0.2); }
-
-        /* 중앙 원형 경기장 - 공간 확보를 위해 마진 추가 */
-        #arena-container { position: relative; margin: 40px 0; } /* 원과 하단 국기 사이 공간 띄움 */
-        #arena { 
-            width: 320px; height: 320px; border: 8px solid black; border-radius: 50%; 
-            background-color: white; position: relative; overflow: visible; /* 공이 밖으로 나가야 하므로 visible */
-        }
-
-        /* 🔴 원형 경기장 구멍 (출구) 표시 */
-        #hole {
-            position: absolute; right: -12px; top: 50%; transform: translateY(-50%);
-            width: 20px; height: 60px; background-color: #90D5FF; /* 배경색과 맞춰서 구멍처럼 보이게 함 */
-            z-index: 5;
-        }
-
-        .flag { position: absolute; width: 30px; height: 20px; background-size: cover; border: 0.5px solid #ccc; z-index: 2; transition: transform 0.1s; }
-
-        /* 하단 무작위 국기 목록 - 간격 조정 */
-        #flag-list { 
-            width: 90%; display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; 
-            padding: 10px; background: rgba(255,255,255,0.3); border-radius: 10px;
-        }
-        .list-flag { width: 100%; height: 18px; background-size: cover; border: 0.5px solid #555; }
-        
-        #score-tag { align-self: flex-end; margin-right: 20px; margin-top: 10px; background: white; padding: 5px 15px; border: 2px solid black; font-weight: bold; font-size: 24px; border-radius: 5px; }
+        .ui-box { background: white; border: 2px solid black; border-radius: 12px; padding: 8px 20px; text-align: center; min-width: 100px; box-shadow: 2px 2px 0px rgba(0,0,0,0.2); }
+        #arena-container { position: relative; margin: 50px 0; } /* 간격을 충분히 띄움 */
+        #arena { width: 320px; height: 320px; border: 8px solid black; border-radius: 50%; background-color: white; position: relative; overflow: visible; }
+        #hole { position: absolute; right: -12px; top: 50%; transform: translateY(-50%); width: 20px; height: 60px; background-color: #90D5FF; z-index: 5; }
+        .flag { position: absolute; width: 30px; height: 20px; background-size: cover; border: 0.5px solid #ccc; z-index: 2; }
+        #flag-list { width: 95%; display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; padding: 10px; background: rgba(255,255,255,0.4); border-radius: 10px; }
+        .list-flag { width: 100%; height: 20px; background-size: cover; border: 0.5px solid #555; }
     </style>
 </head>
 <body>
 
 <div class="info-panel">
-    <div class="ui-box"><b>TOP WINNERS</b><br><span id="winner-name">-</span></div>
-    <div class="ui-box"><b>ROUND</b><br><span id="round-count">1</span>/100</div>
+    <div class="ui-box"><b>LAST WINNER</b><br><span id="winner-name">-</span></div>
+    <div class="ui-box"><b>SURVIVORS</b><br><span id="survivor-count">0</span></div>
 </div>
 
 <div id="arena-container">
-    <div id="arena">
-        <div id="hole"></div> </div>
+    <div id="arena"><div id="hole"></div></div>
 </div>
 
 <div id="flag-list"></div>
-<div id="score-tag">6,875</div>
 
 <script>
     const arena = document.getElementById('arena');
     const flagListContainer = document.getElementById('flag-list');
     const winnerDisplay = document.getElementById('winner-name');
-    const roundDisplay = document.getElementById('round-count');
+    const survivorDisplay = document.getElementById('survivor-count');
     
     const radius = 160;
     let flags = [];
-    let round = 1;
+    
+    // 60개 이상의 다양한 국가 코드 (중복 없이 선택됨)
+    const allCountries = ['kr','us','jp','cn','fr','de','gb','it','br','ca','mx','vn','au','in','es','ru','nl','se','no','ch','at','be','dk','fi','gr','ie','pt','tr','pl','cz','hu','ro','th','id','my','ph','sg','nz','za','eg','ar','cl','co','pe','sa','ae','qa','kw','is','vn','ua','il','mx','ng','gh','ke','ma','dz','eg'];
 
-    // 사용할 국가 코드들
-    const countryCodes = ['kr', 'us', 'jp', 'cn', 'fr', 'de', 'gb', 'it', 'br', 'ca', 'mx', 'vn', 'au', 'in', 'es', 'ru'];
-
-    // 1. 하단 국기 목록을 무작위 패턴으로 생성
-    function createRandomFlagList() {
-        flagListContainer.innerHTML = '';
-        const shuffled = [...Array(80)].map(() => countryCodes[Math.floor(Math.random() * countryCodes.length)]);
-        shuffled.forEach(code => {
-            const f = document.createElement('div');
-            f.className = 'list-flag';
-            f.style.backgroundImage = `url('https://flagcdn.com/w40/${code}.png')`;
-            flagListContainer.appendChild(f);
-        });
-    }
-
-    // 2. 게임 시작 (공 생성 및 초기화)
     function initGame() {
         arena.querySelectorAll('.flag').forEach(el => el.remove());
+        flagListContainer.innerHTML = '';
         flags = [];
-        
-        // 무작위로 국가 선택하여 공 생성
-        for (let i = 0; i < 12; i++) {
-            const code = countryCodes[Math.floor(Math.random() * countryCodes.length)];
+
+        // 1. 사용할 국가 20개를 중복 없이 무작위 선택
+        const selectedCountries = [...allCountries].sort(() => Math.random() - 0.5).slice(0, 20);
+
+        // 2. 공 생성 (한 게임에 한 나라씩)
+        selectedCountries.forEach((code) => {
             const el = document.createElement('div');
             el.className = 'flag';
             el.style.backgroundImage = `url('https://flagcdn.com/w40/${code}.png')`;
             arena.appendChild(el);
 
             const angle = Math.random() * Math.PI * 2;
-            const speed = 2 + Math.random() * 2;
-            flags.push({ 
-                el, code, x: radius, y: radius, 
-                vx: Math.cos(angle) * speed, 
-                vy: Math.sin(angle) * speed,
-                out: false 
-            });
-        }
-        createRandomFlagList();
+            const speed = 3 + Math.random() * 2; // 속도를 약간 높여 멈춤 방지
+            flags.push({ el, code, x: radius, y: radius, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, out: false });
+
+            // 하단 목록에도 추가
+            const f = document.createElement('div');
+            f.className = 'list-flag';
+            f.style.backgroundImage = `url('https://flagcdn.com/w40/${code}.png')`;
+            flagListContainer.appendChild(f);
+        });
+        
+        survivorDisplay.innerText = flags.length;
+        update();
     }
 
     function update() {
-        let winnerFound = false;
+        let activeFlags = flags.filter(f => !f.out);
+        survivorDisplay.innerText = activeFlags.length;
 
-        flags.forEach(f => {
-            if (f.out) return;
-
+        activeFlags.forEach(f => {
             f.x += f.vx;
             f.y += f.vy;
 
-            const dx = f.x - radius;
-            const dy = f.y - radius;
+            const dx = f.x - radius, dy = f.y - radius;
             const dist = Math.sqrt(dx * dx + dy * dy);
 
-            // 🔴 구멍(출구) 체크 로직: 오른쪽 중앙 부근 (y축 130~190 사이)
-            if (f.x > radius + 140 && f.y > radius - 30 && f.y < radius + 30) {
-                // 구멍을 통해 나감!
+            // 🔴 구멍으로 나가는 로직 (서바이벌: 나가는 순서대로 탈락)
+            if (f.x > radius + 145 && f.y > radius - 30 && f.y < radius + 30) {
                 f.out = true;
-                winnerFound = true;
-                winnerDisplay.innerText = f.code.toUpperCase();
+                f.el.style.display = 'none';
                 
-                // 1등 발생 시 2초 후 리셋
-                setTimeout(() => {
-                    round++;
-                    roundDisplay.innerText = round;
-                    initGame();
-                }, 2000);
+                // 마지막 하나 남았는지 체크
+                checkGameOver();
                 return;
             }
 
-            // 일반 벽 충돌
+            // 벽 충돌 (각도 무작위성 강화로 멈춤/끼임 방지)
             if (dist + 15 > radius) {
                 const nx = dx / dist, ny = dy / dist;
                 const dot = f.vx * nx + f.vy * ny;
                 f.vx -= 2 * dot * nx;
                 f.vy -= 2 * dot * ny;
                 
-                // 각도 무작위성 추가
-                const shift = (Math.random() - 0.5) * 0.3;
+                const shift = (Math.random() - 0.5) * 0.4;
                 const cos = Math.cos(shift), sin = Math.sin(shift);
                 const oldVx = f.vx;
                 f.vx = f.vx * cos - f.vy * sin;
                 f.vy = oldVx * sin + f.vy * cos;
 
-                f.x = radius + nx * (radius - 15.1);
-                f.y = radius + ny * (radius - 15.1);
+                f.x = radius + nx * (radius - 15.2);
+                f.y = radius + ny * (radius - 15.2);
             }
 
             f.el.style.left = (f.x - 15) + 'px';
             f.el.style.top = (f.y - 10) + 'px';
         });
 
-        if (!winnerFound) requestAnimationFrame(update);
+        if (flags.filter(f => !f.out).length > 1) {
+            requestAnimationFrame(update);
+        }
+    }
+
+    function checkGameOver() {
+        const remaining = flags.filter(f => !f.out);
+        if (remaining.length === 1) {
+            // 마지막 남은 국기가 우승!
+            const winner = remaining[0];
+            winnerDisplay.innerText = winner.code.toUpperCase();
+            winner.el.style.transform = "scale(2)"; // 우승자 강조
+            winner.el.style.zIndex = "100";
+            
+            // 3초 후 자동 리셋 (무한 반복)
+            setTimeout(initGame, 3000);
+        }
     }
 
     initGame();
-    update();
 </script>
 </body>
 </html>
