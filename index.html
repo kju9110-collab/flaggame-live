@@ -1,105 +1,143 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>국기 팡팡 게임</title>
+    <style>
+        body { margin: 0; background-color: #90D5FF; overflow: hidden; font-family: sans-serif; } /* 배경 하늘색 */
+        #game-container { position: relative; width: 100vw; height: 100vh; }
+        
+        /* 상단 UI 정보창 */
+        .info-panel {
+            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 10px; z-index: 10;
+        }
+        .ui-box {
+            background: white; border: 2px solid black; border-radius: 10px;
+            padding: 5px 15px; text-align: center; min-width: 80px;
+        }
+
+        /* 중앙 원형 경기장 */
+        #arena {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 320px; height: 320px; border: 8px solid black; border-radius: 50%;
+            background-color: white; overflow: hidden;
+        }
+
+        .flag {
+            position: absolute; width: 30px; height: 20px;
+            background-size: cover; border: 0.5px solid #ccc;
+        }
+
+        /* 하단 국기 목록 */
+        #flag-list {
+            position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%);
+            width: 90%; display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px;
+        }
+        .list-flag { width: 100%; height: 15px; background-size: cover; border: 0.2px solid #555; }
+    </style>
 </head>
-<body style="margin:0; padding:0; overflow:hidden;">
-    <script>
-    let flags = [];
-    let exitedFlags = [];
-    let holeSize = 36; 
-    let winner = null;
-    let winTimer = 0;
+<body>
 
-    function setup() {
-      createCanvas(windowWidth, 800);
-      textAlign(CENTER, CENTER);
-      initGame();
-    }
+<div id="game-container">
+    <div class="info-panel">
+        <div class="ui-box"><b>TOP WINNERS</b><br>1x</div>
+        <div class="ui-box"><b>ROUND: 1/100</b><br><span id="timer">14</span></div>
+    </div>
 
-    function initGame() {
-      flags = [];
-      exitedFlags = [];
-      winner = null;
-      winTimer = 0;
-      for (let i = 1; i <= 20; i++) {
-        flags.push(new Flag(i));
-      }
-    }
+    <div id="arena"></div>
 
-    function draw() {
-      background(240);
-      translate(width / 2, 250);
-      noFill();
-      stroke(0);
-      strokeWeight(4);
-      arc(0, 0, 300, 300, radians(holeSize/2), radians(360 - holeSize/2));
-      
-      for (let i = flags.length - 1; i >= 0; i--) {
-        flags[i].update();
-        flags[i].display();
-        let ang = degrees(atan2(flags[i].y, flags[i].x)) + 90;
-        if (ang < 0) ang += 360;
-        if (dist(0, 0, flags[i].x, flags[i].y) > 140 && (ang < holeSize/2 || ang > 360 - holeSize/2)) {
-          let f = flags.splice(i, 1)[0];
-          exitedFlags.push(f);
-          if (flags.length === 0) {
-            winner = f;
-            winTimer = millis();
-          }
+    <div id="flag-list"></div>
+    <div style="position:absolute; bottom:20px; right:20px; background:white; padding:5px 15px; border:1px solid black; font-weight:bold; font-size:24px;">6,875</div>
+</div>
+
+<script>
+    const arena = document.getElementById('arena');
+    const arenaSize = 320;
+    const radius = arenaSize / 2;
+    const flags = [];
+    const numFlags = 20;
+
+    // 국기 이미지 샘플 (국가 코드를 넣으면 이미지를 가져옵니다)
+    const countries = ['kr', 'us', 'jp', 'cn', 'fr', 'de', 'gb', 'it', 'br', 'ca', 'vn', 'mx', 'in', 'au', 'ru', 'es', 'nl', 'se', 'no', 'ch'];
+
+    function createFlags() {
+        for (let i = 0; i < numFlags; i++) {
+            const el = document.createElement('div');
+            el.className = 'flag';
+            el.style.backgroundImage = `url('https://flagcdn.com/w40/${countries[i % countries.length]}.png')`;
+            arena.appendChild(el);
+
+            // 초기 위치: 원 중앙 근처
+            let x = radius;
+            let y = radius;
+            
+            // 핵심: 무작위 각도 설정 (왔다갔다 방지)
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 2 + Math.random() * 2; // 속도도 약간씩 다르게
+
+            flags.push({
+                el, x, y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed
+            });
         }
-      }
-
-      resetMatrix();
-      for (let i = 0; i < exitedFlags.length; i++) {
-        let row = floor(i / 10);
-        let col = i % 10;
-        fill(100, 200, 100);
-        rect(width/2 - 225 + col * 45, 500 + row * 45, 40, 40);
-        fill(255);
-        textSize(12);
-        text(exitedFlags[i].id, width/2 - 205 + col * 45, 520 + row * 45);
-      }
-
-      if (winner && millis() - winTimer < 2000) {
-        fill(255, 0, 0);
-        textSize(50);
-        text("1등: 국기 " + winner.id, width / 2, height / 2);
-      } else if (winner && millis() - winTimer >= 2000) {
-        initGame();
-      }
-    }
-
-    class Flag {
-      constructor(id) {
-        this.id = id;
-        this.x = random(-50, 50);
-        this.y = random(-50, 50);
-        this.vx = random(-4, 4);
-        this.vy = random(-4, 4);
-      }
-      update() {
-        this.x += this.vx;
-        this.y += this.vy;
-        if (dist(0, 0, this.x, this.y) > 140) {
-          let angle = atan2(this.y, this.x);
-          this.vx *= -1; 
-          this.vy *= -1;
-          this.x = cos(angle) * 140;
-          this.y = sin(angle) * 140;
+        
+        // 하단 장식용 국기 리스트 생성
+        const listContainer = document.getElementById('flag-list');
+        for(let i=0; i<80; i++) {
+            const f = document.createElement('div');
+            f.className = 'list-flag';
+            f.style.backgroundImage = `url('https://flagcdn.com/w40/${countries[i % countries.length]}.png')`;
+            listContainer.appendChild(f);
         }
-      }
-      display() {
-        fill(255);
-        stroke(0);
-        strokeWeight(1);
-        ellipse(this.x, this.y, 25, 25);
-        fill(0);
-        noStroke();
-        textSize(12);
-        text(this.id, this.x, this.y);
-      }
     }
-    </script>
+
+    function update() {
+        flags.forEach(f => {
+            f.x += f.vx;
+            f.y += f.vy;
+
+            // 원형 벽 충돌 감지
+            const dx = f.x - radius;
+            const dy = f.y - radius;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist + 15 > radius) { // 국기 크기 고려
+                // 충돌 지점의 법선 벡터
+                const nx = dx / dist;
+                const ny = dy / dist;
+
+                // 반사 공식: v' = v - 2 * (v · n) * n
+                const dot = f.vx * nx + f.vy * ny;
+                f.vx -= 2 * dot * nx;
+                f.vy -= 2 * dot * ny;
+
+                // 벽 밖으로 나가지 않게 위치 보정
+                f.x = radius + nx * (radius - 15.1);
+                f.y = radius + ny * (radius - 15.1);
+
+                // 💡 추가 팁: 반사될 때 아주 미세한 무작위 각도를 더해 똑같은 경로를 방지합니다.
+                const randomAngle = (Math.random() - 0.5) * 0.1;
+                const cos = Math.cos(randomAngle);
+                const sin = Math.sin(randomAngle);
+                const newVx = f.vx * cos - f.vy * sin;
+                const newVy = f.vx * sin + f.vy * cos;
+                f.vx = newVx;
+                f.vy = newVy;
+            }
+
+            f.el.style.left = (f.x - 15) + 'px';
+            f.el.style.top = (f.y - 10) + 'px';
+        });
+
+        requestAnimationFrame(update);
+    }
+
+    createFlags();
+    update();
+</script>
+
 </body>
 </html>
